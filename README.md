@@ -30,7 +30,7 @@ Before you begin, ensure you have the following:
 1. **Clone the Repository**
 
    ```bash
-   git clone https://github.com/yourusername/terraform-aws-infra.git
+   git clone https://github.com/arviiyer/terraform-aws-infra.git
    cd terraform-aws-infra
    ```
 
