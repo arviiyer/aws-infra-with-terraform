@@ -80,7 +80,7 @@ To access the private EC2 instances, first SSH into the bastion host:
 ssh -A -i ~/.ssh/id_rsa ec2-user@<Bastion_Host_Public_IP>
 ```
 
-![Bastion Host SSH Screenshot](https://github.com/arviiyer/aws-infra-with-terraform/blob/main/bastion-ssh.png)
+![Bastion Host SSH Screenshot](https://github.com/arviiyer/aws-infra-with-terraform/blob/main/screenshots/bastion-ssh.png)
 
 ### SSH into Private Instances
 
@@ -90,7 +90,7 @@ From the bastion host, you can SSH into the private instances:
 ssh ec2-user@<Private_Instance_IP>
 ```
 
-![Private Instance SSH Screenshot](https://github.com/arviiyer/aws-infra-with-terraform/blob/main/private-ec2-ssh.png)
+![Private Instance SSH Screenshot](https://github.com/arviiyer/aws-infra-with-terraform/blob/main/screenshots/private-ec2-ssh.png)
 
 ### Testing the Web Server
 
@@ -99,8 +99,8 @@ The private EC2 instances run a simple web server that returns "Hello World" fol
 - **ALB DNS Name**: Get the ALB DNS name from the AWS console or output after applying the Terraform script.
 - Open the DNS name in your browser to see the "Hello World" message.
 
-![ALB Web Server Screenshot 1](https://github.com/arviiyer/aws-infra-with-terraform/blob/main/alb-server-1.png)
-![ALB Web Server Screenshot 2](https://github.com/arviiyer/aws-infra-with-terraform/blob/main/alb-server-2.png)
+![ALB Web Server Screenshot 1](https://github.com/arviiyer/aws-infra-with-terraform/blob/main/screenshots/alb-server-1.png)
+![ALB Web Server Screenshot 2](https://github.com/arviiyer/aws-infra-with-terraform/blob/main/screenshots/alb-server-2.png)
 
 ## Costs and Cleanup
 
