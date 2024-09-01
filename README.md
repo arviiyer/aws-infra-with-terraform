@@ -4,7 +4,7 @@ This project contains Terraform scripts to provision a secure and scalable AWS i
 
 ## Architecture Overview
 
-![Architecture Diagram](path/to/your/architecture-diagram.png)
+![Architecture Diagram](arviiyer/aws-infra-with-terraform/blob/main/terraform-aws-infra.png)
 
 The diagram above illustrates the high-level architecture of the infrastructure:
 
