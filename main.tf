@@ -2,9 +2,11 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 3.0"
+      version = "~> 5.87.0"
     }
   }
+
+  required_version = "~>1.10.0"
 }
 
 provider "aws" {
@@ -36,11 +38,11 @@ data "aws_availability_zones" "available" {
 
 # Create Public Subnets
 resource "aws_subnet" "public_subnet" {
-  count                  = var.availability_zone_count
-  vpc_id                 = aws_vpc.main_vpc.id
-  cidr_block             = cidrsubnet(aws_vpc.main_vpc.cidr_block, 4, count.index)
+  count                   = var.availability_zone_count
+  vpc_id                  = aws_vpc.main_vpc.id
+  cidr_block              = cidrsubnet(aws_vpc.main_vpc.cidr_block, 4, count.index)
   map_public_ip_on_launch = true
-  availability_zone      = element(data.aws_availability_zones.available.names, count.index)
+  availability_zone       = data.aws_availability_zones.available.names[count.index]
   tags = {
     Name = "public-subnet-${count.index + 1}"
   }
@@ -48,11 +50,11 @@ resource "aws_subnet" "public_subnet" {
 
 # Create Private Subnets
 resource "aws_subnet" "private_subnet" {
-  count                  = var.availability_zone_count
-  vpc_id                 = aws_vpc.main_vpc.id
-  cidr_block             = cidrsubnet(aws_vpc.main_vpc.cidr_block, 4, 3 + count.index)
+  count                   = var.availability_zone_count
+  vpc_id                  = aws_vpc.main_vpc.id
+  cidr_block              = cidrsubnet(aws_vpc.main_vpc.cidr_block, 4, 3 + count.index)
   map_public_ip_on_launch = false
-  availability_zone      = element(data.aws_availability_zones.available.names, count.index)
+  availability_zone       = data.aws_availability_zones.available.names[count.index]
   tags = {
     Name = "private-subnet-${count.index + 1}"
   }
@@ -73,36 +75,36 @@ resource "aws_route_table" "public_route_table" {
 # Associate Route Table with Public Subnets
 resource "aws_route_table_association" "public_route_table_association" {
   count          = var.availability_zone_count
-  subnet_id      = element(aws_subnet.public_subnet.*.id, count.index)
+  subnet_id      = aws_subnet.public_subnet[count.index].id
   route_table_id = aws_route_table.public_route_table.id
-}
-
-# Create NAT Gateway (One per AZ)
-resource "aws_nat_gateway" "nat_gateway" {
-  count         = var.availability_zone_count
-  allocation_id = element(aws_eip.elastic_ip.*.id, count.index)
-  subnet_id     = element(aws_subnet.public_subnet.*.id, count.index)
-  tags = {
-    Name = "nat-gateway-${count.index + 1}"
-  }
 }
 
 # Allocate Elastic IPs for NAT Gateway
 resource "aws_eip" "elastic_ip" {
-  count = var.availability_zone_count
-  vpc   = true
+  count  = var.availability_zone_count
+  domain = "vpc"
   tags = {
     Name = "nat-gateway-eip-${count.index + 1}"
   }
 }
 
+# Create NAT Gateway (One per AZ)
+resource "aws_nat_gateway" "nat_gateway" {
+  count         = var.availability_zone_count
+  allocation_id = aws_eip.elastic_ip[count.index].id
+  subnet_id     = aws_subnet.public_subnet[count.index].id
+  tags = {
+    Name = "nat-gateway-${count.index + 1}"
+  }
+}
+
 # Create Route Table for Private Subnets
 resource "aws_route_table" "private_route_table" {
-  count = var.availability_zone_count
+  count  = var.availability_zone_count
   vpc_id = aws_vpc.main_vpc.id
   route {
-    cidr_block    = "0.0.0.0/0"
-    nat_gateway_id = element(aws_nat_gateway.nat_gateway.*.id, count.index)
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.nat_gateway[count.index].id
   }
   tags = {
     Name = "private-route-table-${count.index + 1}"
@@ -112,8 +114,8 @@ resource "aws_route_table" "private_route_table" {
 # Associate Private Subnets with Private Route Tables
 resource "aws_route_table_association" "private_route_table_association" {
   count          = var.availability_zone_count
-  subnet_id      = element(aws_subnet.private_subnet.*.id, count.index)
-  route_table_id = element(aws_route_table.private_route_table.*.id, count.index)
+  subnet_id      = aws_subnet.private_subnet[count.index].id
+  route_table_id = aws_route_table.private_route_table[count.index].id
 }
 
 # Create Security Group for Bastion Host
@@ -195,19 +197,19 @@ resource "aws_security_group" "alb_security_group" {
   }
 }
 
-# Add SSH Key Pair 
+# Add SSH Key Pair
 resource "aws_key_pair" "generated_key" {
-  key_name   = "terraform-generated-key"
-  public_key = file(var.public_key_path)  # Path to your public key
+  key_name   = "ec2-kp"
+  public_key = file(var.public_key_path) # Path to your public key
 }
 
 # Create Bastion Host in Public Subnet
 resource "aws_instance" "bastion_host" {
-  ami           = var.ami_id
-  instance_type = var.instance_type
-  subnet_id     = element(aws_subnet.public_subnet.*.id, 0)
-  security_groups = [aws_security_group.bastion_security_group.id]
-  key_name      = aws_key_pair.generated_key.key_name  # Use the Terraform-created key
+  ami                    = var.ami_id
+  instance_type          = var.instance_type
+  subnet_id              = aws_subnet.public_subnet[0].id
+  vpc_security_group_ids = [aws_security_group.bastion_security_group.id]
+  key_name               = aws_key_pair.generated_key.key_name
 
   tags = {
     Name = "bastion-host"
@@ -216,21 +218,19 @@ resource "aws_instance" "bastion_host" {
 
 # Create EC2 Instances in Private Subnets with Web Server
 resource "aws_instance" "private_instances" {
-  count         = var.availability_zone_count
-  ami           = var.ami_id
-  instance_type = var.instance_type
-  subnet_id     = element(aws_subnet.private_subnet.*.id, count.index)
-  security_groups = [aws_security_group.private_security_group.id]
-  key_name      = aws_key_pair.generated_key.key_name  # Use the Terraform-created key
+  count                  = var.availability_zone_count
+  ami                    = var.ami_id
+  instance_type          = var.instance_type
+  subnet_id              = aws_subnet.private_subnet[count.index].id
+  vpc_security_group_ids = [aws_security_group.private_security_group.id]
+  key_name               = aws_key_pair.generated_key.key_name
 
   user_data = <<-EOF
                 #!/bin/bash
-                yum update -y
-                yum install -y httpd
-                INSTANCE_ID=$(curl http://169.254.169.254/latest/meta-data/instance-id)
+                yum update -y && yum install -y httpd
+                INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
                 echo "Hello World from instance $INSTANCE_ID" > /var/www/html/index.html
-                systemctl start httpd
-                systemctl enable httpd
+                systemctl enable --now httpd
                 EOF
 
   tags = {
@@ -244,7 +244,7 @@ resource "aws_lb" "application_load_balancer" {
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb_security_group.id]
-  subnets            = aws_subnet.public_subnet.*.id
+  subnets            = aws_subnet.public_subnet[*].id
 
   tags = {
     Name = "web-alb"
@@ -272,7 +272,7 @@ resource "aws_lb_target_group" "target_group" {
 resource "aws_lb_target_group_attachment" "target_group_attachment" {
   count            = var.availability_zone_count
   target_group_arn = aws_lb_target_group.target_group.arn
-  target_id        = aws_instance.private_instances.*.id[count.index]
+  target_id        = aws_instance.private_instances[count.index].id
   port             = 80
 }
 
@@ -287,3 +287,4 @@ resource "aws_lb_listener" "web_listener" {
     target_group_arn = aws_lb_target_group.target_group.arn
   }
 }
+

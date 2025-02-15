@@ -4,7 +4,7 @@ output "bastion_public_ip" {
 }
 
 output "private_instance_ips" {
-  value       = aws_instance.private_instances.*.private_ip
+  value       = [for instance in aws_instance.private_instances : instance.private_ip]
   description = "Private IPs of the EC2 instances in private subnets"
 }
 
@@ -12,3 +12,4 @@ output "load_balancer_dns_name" {
   value       = aws_lb.application_load_balancer.dns_name
   description = "DNS name of the Application Load Balancer"
 }
+
