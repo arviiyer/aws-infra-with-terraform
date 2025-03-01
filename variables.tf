@@ -19,6 +19,12 @@ variable "public_key_path" {
   default     = "~/.ssh/id_rsa.pub"
 }
 
+variable "private_key_path" {
+  type        = string
+  description = "Path to the private SSH key"
+  default     = "~/.ssh/id_rsa"
+}
+
 # Define the AMI ID for EC2 instances
 variable "ami_id" {
   type        = string

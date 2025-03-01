@@ -2,11 +2,11 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.87.0"
+      version = ">= 5.87.0"
     }
   }
 
-  required_version = "~>1.10.0"
+  required_version = ">=1.10.0"
 }
 
 provider "aws" {
@@ -203,17 +203,30 @@ resource "aws_key_pair" "generated_key" {
   public_key = file(var.public_key_path) # Path to your public key
 }
 
-# Create Bastion Host in Public Subnet
-resource "aws_instance" "bastion_host" {
-  ami                    = var.ami_id
-  instance_type          = var.instance_type
-  subnet_id              = aws_subnet.public_subnet[0].id
-  vpc_security_group_ids = [aws_security_group.bastion_security_group.id]
-  key_name               = aws_key_pair.generated_key.key_name
+resource "aws_iam_role" "ssm_role" {
+  name = "SSMInstanceRole"
 
-  tags = {
-    Name = "bastion-host"
-  }
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "ec2.amazonaws.com"
+      }
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_policy_attachment" "ssm_attach" {
+  name       = "ssm-attach"
+  roles      = [aws_iam_role.ssm_role.name]
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_instance_profile" "ssm_instance_profile" {
+  name = "SSMInstanceProfile"
+  role = aws_iam_role.ssm_role.name
 }
 
 # Create EC2 Instances in Private Subnets with Web Server
@@ -223,13 +236,13 @@ resource "aws_instance" "private_instances" {
   instance_type          = var.instance_type
   subnet_id              = aws_subnet.private_subnet[count.index].id
   vpc_security_group_ids = [aws_security_group.private_security_group.id]
+  iam_instance_profile   = aws_iam_instance_profile.ssm_instance_profile.name
   key_name               = aws_key_pair.generated_key.key_name
 
   user_data = <<-EOF
                 #!/bin/bash
-                yum update -y && yum install -y httpd
-                INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
-                echo "Hello World from instance $INSTANCE_ID" > /var/www/html/index.html
+                yum update -y && yum upgrade -y && yum install -y httpd
+                echo "Hello World from instance $(hostname)" > /var/www/html/index.html
                 systemctl enable --now httpd
                 EOF
 
