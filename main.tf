@@ -173,6 +173,37 @@ resource "aws_security_group" "private_security_group" {
   }
 }
 
+# Windows Security Group for RDP and Web Access
+resource "aws_security_group" "windows_security_group" {
+  vpc_id      = aws_vpc.main_vpc.id
+  description = "Allow RDP inbound traffic for Windows instances and outbound access to the Internet"
+
+  ingress {
+    from_port   = 3389
+    to_port     = 3389
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "windows-ec2-sg"
+  }
+}
+
 # Create Security Group for Load Balancer
 resource "aws_security_group" "alb_security_group" {
   vpc_id      = aws_vpc.main_vpc.id
@@ -251,6 +282,21 @@ resource "aws_instance" "private_instances" {
   }
 }
 
+# Create Windows Instances with SSM and Load Balancer
+resource "aws_instance" "windows_instances" {
+  count                  = var.availability_zone_count
+  ami                    = "ami-001adaa5c3ee02e10"
+  instance_type          = "t3.medium"
+  key_name               = aws_key_pair.generated_key.key_name
+  subnet_id              = aws_subnet.private_subnet[count.index].id
+  vpc_security_group_ids = [aws_security_group.windows_security_group.id]
+  iam_instance_profile   = aws_iam_instance_profile.ssm_instance_profile.name
+
+  tags = {
+    Name = "windows-instance-${count.index}"
+  }
+}
+
 # Create an Application Load Balancer
 resource "aws_lb" "application_load_balancer" {
   name               = "web-alb"
@@ -286,6 +332,14 @@ resource "aws_lb_target_group_attachment" "target_group_attachment" {
   count            = var.availability_zone_count
   target_group_arn = aws_lb_target_group.target_group.arn
   target_id        = aws_instance.private_instances[count.index].id
+  port             = 80
+}
+
+# Attach Windows Instances to Load Balancer Target Group
+resource "aws_lb_target_group_attachment" "windows_target_group_attachment" {
+  count            = var.availability_zone_count
+  target_group_arn = aws_lb_target_group.target_group.arn
+  target_id        = aws_instance.windows_instances[count.index].id
   port             = 80
 }
 

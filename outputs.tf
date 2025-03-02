@@ -13,3 +13,12 @@ output "load_balancer_dns_name" {
   description = "DNS name of the Application Load Balancer"
 }
 
+output "windows_instance_ips" {
+  value       = [for instance in aws_instance.windows_instances : instance.private_ip]
+  description = "Public IP addresses of the Windows instances"
+}
+
+output "windows_instance_id" {
+  value       = [for instance in aws_instance.windows_instances : instance.id]
+  description = "ID of the created Windows instances"
+}
